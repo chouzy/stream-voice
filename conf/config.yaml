@@ -1,0 +1,19 @@
+server:
+  name: stream-voice
+
+asr:
+  hostUrl: wss://iat-api.xfyun.cn/v2/iat
+  appid: xxx
+  apiSecret: xxx
+  apiKey: xxx
+
+zap:
+  level: debug                              # 级别
+  prefix: ""                                # 日志前缀
+  format: json                              # 输出格式
+  director: log                             # 日志文件夹
+  encodeLevel: LowercaseLevelEncoder        # 编码级别
+  stacktraceKey: stacktrace                 # 栈名
+  maxAge: 30                                # 日志留存时间, 单位：天
+  showLine: true                            # 显示行
+  logInConsole: true                        # 输出到控制台
