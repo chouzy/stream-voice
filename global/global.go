@@ -1,11 +1,13 @@
 package global
 
 import (
+	"stream-voice/pkg/logger"
 	"stream-voice/pkg/setting"
 )
 
 var (
 	ServerSetting *setting.ServerSettingS
 	AsrSetting    *setting.AstSettingS
-	LogSetting    *setting.LogSettingS
+	LoggerSetting *setting.LogSettingS
+	Log           *logger.Logger
 )
