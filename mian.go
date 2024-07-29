@@ -11,22 +11,24 @@ func initConfig() error {
 	if err != nil {
 		return err
 	}
-	err = s.ReadSection("server", &global.Server)
+	err = s.ReadSection("server", &global.ServerSetting)
 	if err != nil {
 		return err
 	}
-	err = s.ReadSection("asr", &global.Asr)
+	err = s.ReadSection("asr", &global.AsrSetting)
 	if err != nil {
 		return err
 	}
-	err = s.ReadSection("zap", &global.Log)
+	err = s.ReadSection("zap", &global.LogSetting)
 	if err != nil {
 		return err
 	}
 
-	global.Asr.Appid = os.Getenv("XF_ASR_APP_ID")
-	global.Asr.ApiSecret = os.Getenv("XF_ASR_API_SECRET")
-	global.Asr.ApiKey = os.Getenv("XF_ASR_API_KEY")
+	if global.ServerSetting.Debug {
+		global.AsrSetting.Appid = os.Getenv("XF_ASR_APP_ID")
+		global.AsrSetting.ApiSecret = os.Getenv("XF_ASR_API_SECRET")
+		global.AsrSetting.ApiKey = os.Getenv("XF_ASR_API_KEY")
+	}
 
 	return nil
 }
@@ -36,4 +38,5 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
 }

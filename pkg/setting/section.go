@@ -1,8 +1,23 @@
 package setting
 
-type Ast struct {
-	HostUrl   string `json:"host_url" yaml:"hostUrl"`
-	Appid     string `json:"appid" yaml:"appid"`
-	ApiSecret string `json:"api_secret" yaml:"apiSecret"`
-	ApiKey    string `json:"api_key" yaml:"apiKey"`
+type ServerSettingS struct {
+	Type  string
+	Debug bool
+}
+
+type AstSettingS struct {
+	HostUrl   string
+	Appid     string
+	ApiSecret string
+	ApiKey    string
+}
+
+type LogSettingS struct {
+	LogFileName string
+	LogFileExt  string
+	LogSavePath string
+	MaxSize     int
+	MaxAge      int
+	MaxBackups  int
+	Compress    bool
 }

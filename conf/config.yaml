@@ -1,19 +1,18 @@
-server:
-  name: stream-voice
+Server:
+  Name: stream-voice
+  Debug: true
 
-asr:
-  hostUrl: wss://iat-api.xfyun.cn/v2/iat
-  appid: xxx
-  apiSecret: xxx
-  apiKey: xxx
+Asr:
+  HostUrl: wss://iat-api.xfyun.cn/v2/iat
+  Appid: xxx
+  ApiSecret: xxx
+  ApiKey: xxx
 
-zap:
-  level: debug                              # 级别
-  prefix: ""                                # 日志前缀
-  format: json                              # 输出格式
-  director: log                             # 日志文件夹
-  encodeLevel: LowercaseLevelEncoder        # 编码级别
-  stacktraceKey: stacktrace                 # 栈名
-  maxAge: 30                                # 日志留存时间, 单位：天
-  showLine: true                            # 显示行
-  logInConsole: true                        # 输出到控制台
+Logger:
+  LogFileName: customize_process
+  LogFileExt: .log
+  LogSavePath: ./log
+  MaxSize: 100    #在进行切割之前，日志文件的最大大小（MB为单位）
+  MaxAge: 30      #保留旧文件的最大天数
+  MaxBackups: 30  #保留旧文件的最大个数
+  Compress: false #是否压缩/归档旧文件
