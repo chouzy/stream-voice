@@ -7,6 +7,7 @@ import (
 
 var (
 	ServerSetting *setting.ServerSettingS
+	SocketSetting *setting.WebSocketSettingS
 	AsrSetting    *setting.AstSettingS
 	LoggerSetting *setting.LoggerSettingS
 

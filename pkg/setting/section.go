@@ -1,8 +1,18 @@
 package setting
 
+import "time"
+
 type ServerSettingS struct {
-	Type  string
-	Debug bool
+	Type     string
+	HttpPort string
+	Debug    bool
+}
+
+type WebSocketSettingS struct {
+	KeepAliveTime   time.Duration
+	ReadBufferSize  int
+	WriteBufferSize int
+	ReadLimit       int64
 }
 
 type AstSettingS struct {

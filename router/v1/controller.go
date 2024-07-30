@@ -7,6 +7,8 @@ import (
 	"stream-voice/model"
 	err_code "stream-voice/pkg/err-code"
 	"stream-voice/pkg/response"
+	"stream-voice/service"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -22,7 +24,7 @@ func initConn(ctx *gin.Context) (*websocket.Conn, *model.Request, error) {
 	}
 	conn, err := upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
-		global.Log.Errorf("websocket conn error: %w", err)
+		global.Log.Errorf("websocket conn error: %v", err)
 		response.NewResponse(ctx, conn, err_code.WebSocketConnErr).AbortWithJson(http.StatusNotAcceptable)
 		return nil, nil, err
 	}
@@ -43,9 +45,24 @@ func initConn(ctx *gin.Context) (*websocket.Conn, *model.Request, error) {
 }
 
 func MiniProgramController(ctx *gin.Context) {
-	conn, request, err := initConn(ctx)
+	conn, _, err := initConn(ctx)
 	if err != nil {
 		return
 	}
+	server := service.NewServer(conn)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		server.SendASRMsgToClient(ctx)
+	}()
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		server.ReceiveClientMsg(ctx)
+	}()
+
+	wg.Wait()
+	response.NewResponse(ctx, conn, err_code.Success).End(websocket.CloseNormalClosure, "websocket close")
 }

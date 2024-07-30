@@ -4,18 +4,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type Controller interface {
-	Asr()
-}
-
 type Server struct {
-	conn *websocket.Conn
-	asr  chan []byte
+	conn  *websocket.Conn
+	asrCh chan []byte
 }
 
 func NewServer(conn *websocket.Conn) *Server {
 	return &Server{
-		conn: conn,
-		asr:  make(chan []byte, 1024),
+		conn:  conn,
+		asrCh: make(chan []byte, 1024),
 	}
 }

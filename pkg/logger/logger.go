@@ -43,17 +43,17 @@ func NewLogger(hook io.Writer, mode string) *Logger {
 
 	core := zapcore.NewCore(
 		zapcore.NewJSONEncoder(encoderConfig), // 编码器配置
-		//zapcore.NewMultiWriteSyncer(zapcore.AddSync(hook)), //打印到文件 --打印到控制台：zapcore.AddSync(os.Stdout)
+		// zapcore.NewMultiWriteSyncer(zapcore.AddSync(hook)), //打印到文件 --打印到控制台：zapcore.AddSync(os.Stdout)
 		zapcore.AddSync(os.Stdout),
 		atomicLevel, // 日志级别
 	)
-	//输出文件和行号，前提是配置对象encoderConfig中必须设有CallerKey字段
+	// 输出文件和行号，前提是配置对象encoderConfig中必须设有CallerKey字段
 	caller := zap.AddCaller()
-	//由于再次封装日志，因此需要打印上一级的调用，1表示向上跳一级
+	// 由于再次封装日志，因此需要打印上一级的调用，1表示向上跳一级
 	callerSkip := zap.AddCallerSkip(1)
 
 	if mode == "debug" {
-		//开启开发模式
+		// 开启开发模式
 		return &Logger{
 			newLogger: zap.New(core, caller, callerSkip, zap.Development()),
 		}
@@ -64,7 +64,7 @@ func NewLogger(hook io.Writer, mode string) *Logger {
 	}
 }
 
-func (l *Logger) clone() *Logger { //防止并发时的数据脏乱
+func (l *Logger) clone() *Logger { // 防止并发时的数据脏乱
 	nl := *l
 	return &nl
 }

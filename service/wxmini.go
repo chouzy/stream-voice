@@ -2,11 +2,19 @@ package service
 
 import (
 	"github.com/gin-gonic/gin"
+	"stream-voice/global"
+	"time"
 )
 
-func (s *Server) receiveClientMsg(ctx *gin.Context) {
+// ReceiveClientMsg 接收客户端信息并处理数据
+func (s *Server) ReceiveClientMsg(ctx *gin.Context) {
 	msgCh := make(chan []byte)
 	errCh := make(chan error, 1)
+
+	s.conn.SetReadLimit(global.SocketSetting.ReadLimit)
+	s.conn.SetPingHandler(func(appData string) error {
+		return nil
+	})
 
 	// 开启协程读取客户端数据
 	go func() {
@@ -20,44 +28,18 @@ func (s *Server) receiveClientMsg(ctx *gin.Context) {
 		}
 	}()
 
+	timer := time.NewTimer(global.SocketSetting.KeepAliveTime)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			global.Log.Errorf("timeout err")
+			return
+		case err := <-errCh:
+			global.Log.Errorf("websocket err: %v", err)
+			return
+		case msg := <-msgCh:
+			s.asrCh <- msg
+		}
+	}
 }
-
-// func StartService() {
-// 	r := gin.Default()
-// 	r.GET("/ws", handleWebSocket)
-// 	r.Run("localhost:8080")
-// }
-
-// func handleWebSocket(c *gin.Context) {
-// 	// 升级HTTP连接为WebSocket连接
-// 	upgrader := websocket.Upgrader{
-// 		ReadBufferSize:  1024,
-// 		WriteBufferSize: 1024,
-// 		CheckOrigin: func(r *http.Request) bool {
-// 			return true
-// 		},
-// 	}
-// 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-// 	if err != nil {
-// 		log.Println(err)
-// 		return
-// 	}
-// 	defer conn.Close()
-
-// 	// 处理WebSocket连接
-// 	for {
-// 		msgType, p, err := conn.ReadMessage()
-// 		if err != nil {
-// 			log.Println(err)
-// 			return
-// 		}
-// 		log.Println("Received msg: ", string(p))
-
-// 		// 发送消息
-// 		err = conn.WriteMessage(msgType, []byte("hello, world"))
-// 		if err != nil {
-// 			log.Println(err)
-// 			return
-// 		}
-// 	}
-// }

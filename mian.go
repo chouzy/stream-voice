@@ -1,14 +1,20 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
 	"runtime"
 	"stream-voice/global"
 	"stream-voice/pkg/logger"
 	"stream-voice/pkg/setting"
+	"stream-voice/router"
+	"syscall"
 	"time"
 
 	"github.com/natefinch/lumberjack"
@@ -29,15 +35,19 @@ func setupSetting() error {
 	if err != nil {
 		return err
 	}
-	err = s.ReadSection("server", &global.ServerSetting)
+	err = s.ReadSection("Server", &global.ServerSetting)
 	if err != nil {
 		return err
 	}
-	err = s.ReadSection("asr", &global.AsrSetting)
+	err = s.ReadSection("WebSocket", &global.SocketSetting)
 	if err != nil {
 		return err
 	}
-	err = s.ReadSection("zap", &global.LoggerSetting)
+	err = s.ReadSection("Asr", &global.AsrSetting)
+	if err != nil {
+		return err
+	}
+	err = s.ReadSection("Logger", &global.LoggerSetting)
 	if err != nil {
 		return err
 	}
@@ -100,4 +110,32 @@ func main() {
 			}).Infof("监控日志")
 		}
 	}()
+
+	r := router.NewRouter()
+	s := http.Server{
+		Addr:           ":" + global.ServerSetting.HttpPort,
+		Handler:        r,
+		MaxHeaderBytes: 1 << 20,
+	}
+
+	go func() {
+		if err := s.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("s.ListenAndServe err: %v", err)
+		}
+	}()
+
+	// 待所有服务请求完成后再关闭服务
+	// 适用于k8s和docker的服务重启
+	quit := make(chan os.Signal)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM) // 接收系统信号量
+	<-quit
+	log.Println("Shuting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := s.Shutdown(ctx); err != nil {
+		log.Fatal("Server forced to shutdown:", err)
+	}
+
+	log.Println("Server exiting")
 }
