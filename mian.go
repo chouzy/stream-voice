@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"stream-voice/global"
 	"stream-voice/pkg/logger"
 	"stream-voice/pkg/setting"
@@ -84,4 +85,19 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// 使用量监控日志
+	go func() {
+		for {
+			time.Sleep(time.Minute * 5)
+
+			stats := runtime.MemStats{}
+			runtime.ReadMemStats(&stats)
+			alloc, syss, idle, inuse, stack := float64(stats.HeapAlloc)/1024/1024, float64(stats.HeapSys)/1024/1024,
+				float64(stats.HeapIdle)/1024/1024, float64(stats.HeapInuse)/1024/1024, float64(stats.StackInuse)/1024/1024
+			global.Log.WithFields(logger.Fields{
+				"GoRoutines": runtime.NumGoroutine(),
+				"Memory":     fmt.Sprintf("heap_alloc=%.2fMB heap_sys=%.2fMB heap_idle=%.2fMB heap_inuse=%.2fMB stack=%.2fMB\n", alloc, syss, idle, inuse, stack),
+			}).Infof("监控日志")
+		}
+	}()
 }
