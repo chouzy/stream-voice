@@ -12,7 +12,7 @@ type AstSettingS struct {
 	ApiKey    string
 }
 
-type LogSettingS struct {
+type LoggerSettingS struct {
 	LogFileName string
 	LogFileExt  string
 	LogSavePath string

@@ -2,48 +2,62 @@ package service
 
 import (
 	"github.com/gin-gonic/gin"
-	"log"
-	"net/http"
-
-	"github.com/gorilla/websocket"
 )
 
-func StartService() {
-	r := gin.Default()
-	r.GET("/ws", handleWebSocket)
-	r.Run("localhost:8080")
+func (s *Server) receiveClientMsg(ctx *gin.Context) {
+	msgCh := make(chan []byte)
+	errCh := make(chan error, 1)
+
+	// 开启协程读取客户端数据
+	go func() {
+		for {
+			_, msg, err := s.conn.ReadMessage()
+			if err != nil {
+				errCh <- err
+				return
+			}
+			msgCh <- msg
+		}
+	}()
+
 }
 
-func handleWebSocket(c *gin.Context) {
-	// 升级HTTP连接为WebSocket连接
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-	}
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	defer conn.Close()
+// func StartService() {
+// 	r := gin.Default()
+// 	r.GET("/ws", handleWebSocket)
+// 	r.Run("localhost:8080")
+// }
 
-	// 处理WebSocket连接
-	for {
-		msgType, p, err := conn.ReadMessage()
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		log.Println("Received msg: ", string(p))
+// func handleWebSocket(c *gin.Context) {
+// 	// 升级HTTP连接为WebSocket连接
+// 	upgrader := websocket.Upgrader{
+// 		ReadBufferSize:  1024,
+// 		WriteBufferSize: 1024,
+// 		CheckOrigin: func(r *http.Request) bool {
+// 			return true
+// 		},
+// 	}
+// 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+// 	if err != nil {
+// 		log.Println(err)
+// 		return
+// 	}
+// 	defer conn.Close()
 
-		// 发送消息
-		err = conn.WriteMessage(msgType, []byte("hello, world"))
-		if err != nil {
-			log.Println(err)
-			return
-		}
-	}
-}
+// 	// 处理WebSocket连接
+// 	for {
+// 		msgType, p, err := conn.ReadMessage()
+// 		if err != nil {
+// 			log.Println(err)
+// 			return
+// 		}
+// 		log.Println("Received msg: ", string(p))
+
+// 		// 发送消息
+// 		err = conn.WriteMessage(msgType, []byte("hello, world"))
+// 		if err != nil {
+// 			log.Println(err)
+// 			return
+// 		}
+// 	}
+// }
