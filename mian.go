@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 	"os"
@@ -111,9 +112,10 @@ func main() {
 		}
 	}()
 
+	gin.SetMode(gin.DebugMode)
 	r := router.NewRouter()
 	s := http.Server{
-		Addr:           ":" + global.ServerSetting.HttpPort,
+		Addr:           "127.0.0.1:" + global.ServerSetting.HttpPort,
 		Handler:        r,
 		MaxHeaderBytes: 1 << 20,
 	}
@@ -129,13 +131,13 @@ func main() {
 	quit := make(chan os.Signal)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM) // 接收系统信号量
 	<-quit
-	log.Println("Shuting down server...")
+	log.Println("shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := s.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown:", err)
+		log.Fatal("server forced to shutdown:", err)
 	}
 
-	log.Println("Server exiting")
+	log.Println("server exiting")
 }

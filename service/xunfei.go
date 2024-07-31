@@ -27,6 +27,7 @@ const (
 func (s *Server) SendASRMsgToClient(ctx *gin.Context) {
 	conn, err := initConn()
 	if err != nil {
+		global.Log.Errorf("xunfei websocket conn err: %v", err)
 		response.NewResponse(ctx, s.conn, err_code.ServerError).SendJson().End(websocket.CloseInvalidFramePayloadData, err.Error())
 		return
 	}
@@ -54,11 +55,10 @@ func (s *Server) SendASRMsgToClient(ctx *gin.Context) {
 					"data": map[string]interface{}{
 						"status":   StatusFirstFrame,
 						"format":   "audio/L16;rate=16000",
-						"audio":    data,
+						"audio":    base64.StdEncoding.EncodeToString(data),
 						"encoding": "raw",
 					},
 				}
-				fmt.Println("send first")
 				conn.WriteJSON(frameData)
 				status = StatusContinueFrame
 			case StatusContinueFrame:
@@ -66,7 +66,7 @@ func (s *Server) SendASRMsgToClient(ctx *gin.Context) {
 					"data": map[string]interface{}{
 						"status":   StatusContinueFrame,
 						"format":   "audio/L16;rate=16000",
-						"audio":    data,
+						"audio":    base64.StdEncoding.EncodeToString(data),
 						"encoding": "raw",
 					},
 				}
@@ -76,12 +76,11 @@ func (s *Server) SendASRMsgToClient(ctx *gin.Context) {
 					"data": map[string]interface{}{
 						"status":   StatusLastFrame,
 						"format":   "audio/L16;rate=16000",
-						"audio":    data,
+						"audio":    base64.StdEncoding.EncodeToString(data),
 						"encoding": "raw",
 					},
 				}
 				conn.WriteJSON(frameData)
-				fmt.Println("send last")
 				return
 			}
 
@@ -94,14 +93,17 @@ func (s *Server) SendASRMsgToClient(ctx *gin.Context) {
 		var resp = model.AsrRespData{}
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
+			global.Log.Errorf("asr message read err: %v", err)
 			response.NewResponse(ctx, s.conn, err_code.ServerError).SendJson().End(websocket.CloseInvalidFramePayloadData, err.Error())
 			break
 		}
 		json.Unmarshal(msg, &resp)
 		if resp.Code != 0 {
+			global.Log.Errorf("asr message parse err: %v", err)
 			response.NewResponse(ctx, s.conn, err_code.ServerError).SendJson().End(websocket.CloseInvalidFramePayloadData, "讯飞返回异常")
 			return
 		}
+		global.Log.Info(string(msg))
 		response.NewResponse(ctx, s.conn, err_code.Success).SetData(resp).SendJson()
 		if resp.Data.Status == 2 {
 			return

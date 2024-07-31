@@ -12,6 +12,6 @@ type Server struct {
 func NewServer(conn *websocket.Conn) *Server {
 	return &Server{
 		conn:  conn,
-		asrCh: make(chan []byte, 1024),
+		asrCh: make(chan []byte, 1280),
 	}
 }
