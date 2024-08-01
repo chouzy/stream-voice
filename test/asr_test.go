@@ -10,7 +10,7 @@ import (
 )
 
 func TestAsr(t *testing.T) {
-	file := ""
+	file := "../doc/iat_pcm_16k.pcm"
 	frameSize := 1280
 	audioFile, err := os.Open(file)
 	if err != nil {
@@ -21,7 +21,7 @@ func TestAsr(t *testing.T) {
 	d := websocket.Dialer{
 		HandshakeTimeout: 5 * time.Second,
 	}
-	conn, resp, err := d.Dial("wx://127.0.0.1:8080/", nil)
+	conn, resp, err := d.Dial("ws://127.0.0.1:8080/stream-voice/v1/wx", nil)
 	if err != nil || resp.StatusCode != 101 {
 		t.Fatal(err)
 	}

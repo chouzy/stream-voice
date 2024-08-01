@@ -1,6 +1,7 @@
 package service
 
 import (
+	"stream-voice/model"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -9,17 +10,17 @@ import (
 
 type Server struct {
 	conn  *websocket.Conn
-	asrCh chan []byte
+	asrCh chan model.Request
 }
 
 func NewServer(conn *websocket.Conn) *Server {
 	return &Server{
 		conn:  conn,
-		asrCh: make(chan []byte, 1280),
+		asrCh: make(chan model.Request, 1),
 	}
 }
 
-func (s Server) AsrServer(ctx *gin.Context) (err error) {
+func (s *Server) AsrServer(ctx *gin.Context) (err error) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {

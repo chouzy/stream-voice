@@ -12,6 +12,7 @@ func NewRouter() *gin.Engine {
 		r.Use(gin.Logger())
 		r.Use(gin.Recovery())
 	}
+
 	groupV1 := r.Group("/stream-voice/v1")
 	{
 		groupV1.GET("/wx", v1.MiniProgramController)

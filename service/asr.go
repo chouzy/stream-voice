@@ -27,7 +27,7 @@ const (
 
 // asrReceiveMsgFromClient 接收客户端信息并处理数据
 func (s *Server) asrReceiveMsgFromClient(ctx *gin.Context) error {
-	msgCh := make(chan []byte)
+	msgCh := make(chan model.Request)
 	errCh := make(chan error, 1)
 
 	s.conn.SetReadLimit(global.SocketSetting.ReadLimit)
@@ -50,7 +50,12 @@ func (s *Server) asrReceiveMsgFromClient(ctx *gin.Context) error {
 				errCh <- err
 				return
 			}
-			msgCh <- msg
+			req := model.Request{}
+			if err = json.Unmarshal(msg, &req); err != nil {
+				global.Log.Errorf("request unmarshal err: %v", err)
+				return
+			}
+			msgCh <- req
 		}
 	}()
 
@@ -64,6 +69,7 @@ func (s *Server) asrReceiveMsgFromClient(ctx *gin.Context) error {
 		case err := <-errCh:
 			return err
 		case msg := <-msgCh:
+			global.Log.WithFields(logger.Fields{"size": len(msg.Data)}).Info("client message")
 			s.asrCh <- msg
 		}
 	}
@@ -82,66 +88,75 @@ func (s *Server) asrSendMsgToClient(ctx *gin.Context) error {
 	go func() {
 		status := StatusFirstFrame
 		for {
-			data := <-s.asrCh
-			if string(data) == "--end--" {
-				status = StatusLastFrame
-			}
 			select {
 			case <-ctx.Done():
 				global.Log.Info("client conn is done and finish xunfei server goroutine")
 				return
+			case data := <-s.asrCh:
+				global.Log.WithFields(logger.Fields{"size": len(data.Data)}).Info("data size")
+				if data.IsLast {
+					status = StatusLastFrame
+				}
+				switch status {
+				case StatusFirstFrame: // 发送第一帧音频，带business 参数
+					frameData := map[string]interface{}{
+						"common": map[string]interface{}{
+							"app_id": global.AsrSetting.Appid, // appid 必须带上，只需第一帧发送
+						},
+						"business": map[string]interface{}{ // business 参数，只需一帧发送
+							"language": "zh_cn",
+							"domain":   "iat",
+							"accent":   "mandarin",
+						},
+						"data": map[string]interface{}{
+							"status":   StatusFirstFrame,
+							"format":   "audio/L16;rate=16000",
+							"audio":    data.Data,
+							"encoding": "raw",
+						},
+					}
+					conn.WriteJSON(frameData)
+					global.Log.WithFields(logger.Fields{"frameData": frameData}).Info("first frame")
+					status = StatusContinueFrame
+				case StatusContinueFrame:
+					frameData := map[string]interface{}{
+						"data": map[string]interface{}{
+							"status":   StatusContinueFrame,
+							"format":   "audio/L16;rate=16000",
+							"audio":    data.Data,
+							"encoding": "raw",
+						},
+					}
+					conn.WriteJSON(frameData)
+					global.Log.WithFields(logger.Fields{"frameData": frameData}).Info("continue frame")
+				case StatusLastFrame:
+					frameData := map[string]interface{}{
+						"data": map[string]interface{}{
+							"status":   StatusLastFrame,
+							"format":   "audio/L16;rate=16000",
+							"audio":    data.Data,
+							"encoding": "raw",
+						},
+					}
+					conn.WriteJSON(frameData)
+					global.Log.WithFields(logger.Fields{"frameData": frameData}).Info("last frame")
+					return
+				}
 			default:
+				time.Sleep(40 * time.Millisecond)
 			}
-			switch status {
-			case StatusFirstFrame: // 发送第一帧音频，带business 参数
-				frameData := map[string]interface{}{
-					"common": map[string]interface{}{
-						"app_id": global.AsrSetting.Appid, // appid 必须带上，只需第一帧发送
-					},
-					"business": map[string]interface{}{ // business 参数，只需一帧发送
-						"language": "zh_cn",
-						"domain":   "iat",
-						"accent":   "mandarin",
-					},
-					"data": map[string]interface{}{
-						"status":   StatusFirstFrame,
-						"format":   "audio/L16;rate=16000",
-						"audio":    base64.StdEncoding.EncodeToString(data),
-						"encoding": "raw",
-					},
-				}
-				conn.WriteJSON(frameData)
-				status = StatusContinueFrame
-			case StatusContinueFrame:
-				frameData := map[string]interface{}{
-					"data": map[string]interface{}{
-						"status":   StatusContinueFrame,
-						"format":   "audio/L16;rate=16000",
-						"audio":    base64.StdEncoding.EncodeToString(data),
-						"encoding": "raw",
-					},
-				}
-				conn.WriteJSON(frameData)
-			case StatusLastFrame:
-				frameData := map[string]interface{}{
-					"data": map[string]interface{}{
-						"status":   StatusLastFrame,
-						"format":   "audio/L16;rate=16000",
-						"audio":    base64.StdEncoding.EncodeToString(data),
-						"encoding": "raw",
-					},
-				}
-				conn.WriteJSON(frameData)
-				return
-			}
-
-			time.Sleep(40 * time.Millisecond)
 		}
 	}()
 
 	// 获取返回数据
 	for {
-		// TODO: 是否需要监听ctx.Done()
+		select {
+		case <-ctx.Done():
+			global.Log.Info("client conn close and finish send message")
+			return nil
+		default:
+		}
+
 		var resp = model.AsrRespData{}
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -158,6 +173,7 @@ func (s *Server) asrSendMsgToClient(ctx *gin.Context) error {
 		if resp.Data.Status == 2 {
 			break
 		}
+		time.Sleep(500 * time.Millisecond)
 	}
 	return nil
 }

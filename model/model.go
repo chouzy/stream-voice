@@ -1,8 +1,8 @@
 package model
 
 type Request struct {
-	Type int    `json:"type"`
-	Data []byte `json:"data"`
+	Data   string `json:"data"`
+	IsLast bool   `json:"isLast"`
 }
 
 type Response struct {
