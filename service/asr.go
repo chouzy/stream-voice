@@ -6,15 +6,17 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	"net/url"
 	"stream-voice/global"
 	"stream-voice/model"
 	err_code "stream-voice/pkg/err-code"
+	"stream-voice/pkg/logger"
 	"stream-voice/pkg/response"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -23,13 +25,56 @@ const (
 	StatusLastFrame     = 2
 )
 
-// SendASRMsgToClient 发送信息给客户端
-func (s *Server) SendASRMsgToClient(ctx *gin.Context) {
+// asrReceiveMsgFromClient 接收客户端信息并处理数据
+func (s *Server) asrReceiveMsgFromClient(ctx *gin.Context) error {
+	msgCh := make(chan []byte)
+	errCh := make(chan error, 1)
+
+	s.conn.SetReadLimit(global.SocketSetting.ReadLimit)
+	s.conn.SetPingHandler(func(appData string) error {
+		return nil
+	})
+
+	// 开启协程读取客户端数据
+	go func() {
+		select {
+		case <-ctx.Done():
+			global.Log.Info("client conn is done and finish client read goroutine")
+			return
+		default:
+		}
+		for {
+			_, msg, err := s.conn.ReadMessage()
+			if err != nil {
+				global.Log.Errorf("client read message err: %v", err)
+				errCh <- err
+				return
+			}
+			msgCh <- msg
+		}
+	}()
+
+	timer := time.NewTimer(global.SocketSetting.KeepAliveTime)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			global.Log.Error("client read message timeout")
+			return fmt.Errorf("client read message timeout")
+		case err := <-errCh:
+			return err
+		case msg := <-msgCh:
+			s.asrCh <- msg
+		}
+	}
+}
+
+// asrSendMsgToClient 发送信息给客户端
+func (s *Server) asrSendMsgToClient(ctx *gin.Context) error {
 	conn, err := initConn()
 	if err != nil {
 		global.Log.Errorf("xunfei websocket conn err: %v", err)
-		response.NewResponse(ctx, s.conn, err_code.ServerError).SendJson().End(websocket.CloseInvalidFramePayloadData, err.Error())
-		return
+		return err
 	}
 	defer conn.Close()
 
@@ -40,6 +85,12 @@ func (s *Server) SendASRMsgToClient(ctx *gin.Context) {
 			data := <-s.asrCh
 			if string(data) == "--end--" {
 				status = StatusLastFrame
+			}
+			select {
+			case <-ctx.Done():
+				global.Log.Info("client conn is done and finish xunfei server goroutine")
+				return
+			default:
 			}
 			switch status {
 			case StatusFirstFrame: // 发送第一帧音频，带business 参数
@@ -90,25 +141,25 @@ func (s *Server) SendASRMsgToClient(ctx *gin.Context) {
 
 	// 获取返回数据
 	for {
+		// TODO: 是否需要监听ctx.Done()
 		var resp = model.AsrRespData{}
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
-			global.Log.Errorf("asr message read err: %v", err)
-			response.NewResponse(ctx, s.conn, err_code.ServerError).SendJson().End(websocket.CloseInvalidFramePayloadData, err.Error())
-			break
+			global.Log.Errorf("xunfei conn read message err: %v", err)
+			return err
 		}
 		json.Unmarshal(msg, &resp)
 		if resp.Code != 0 {
-			global.Log.Errorf("asr message parse err: %v", err)
-			response.NewResponse(ctx, s.conn, err_code.ServerError).SendJson().End(websocket.CloseInvalidFramePayloadData, "讯飞返回异常")
-			return
+			global.Log.WithFields(logger.Fields{"response": resp}).Errorf("xunfei response err: %v", err)
+			return fmt.Errorf("xunfei response err: %v", err)
 		}
-		global.Log.Info(string(msg))
+		global.Log.WithFields(logger.Fields{"response": string(msg)}).Info("xunfei response")
 		response.NewResponse(ctx, s.conn, err_code.Success).SetData(resp).SendJson()
 		if resp.Data.Status == 2 {
-			return
+			break
 		}
 	}
+	return nil
 }
 
 func initConn() (*websocket.Conn, error) {
