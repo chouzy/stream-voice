@@ -14,8 +14,8 @@ import (
 
 func initConn(ctx *gin.Context) (*websocket.Conn, *model.Request, error) {
 	upgrader := websocket.Upgrader{
-		ReadBufferSize:  10280,
-		WriteBufferSize: 10280,
+		ReadBufferSize:  global.SocketSetting.ReadBufferSize,
+		WriteBufferSize: global.SocketSetting.WriteBufferSize,
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		},
@@ -51,10 +51,11 @@ func MiniProgramController(ctx *gin.Context) {
 		response.NewResponse(ctx, conn, err_code.WebSocketConnErr).AbortWithJson(http.StatusNotAcceptable)
 		return
 	}
-	server := service.NewServer(conn)
-	if err = server.AsrServer(ctx); err != nil {
-		response.NewResponse(ctx, conn, err_code.ServerError).End(websocket.CloseInvalidFramePayloadData, "server err")
-	} else {
-		response.NewResponse(ctx, conn, err_code.Success).End(websocket.CloseNormalClosure, "end")
+
+	s := service.NewServer(conn)
+	if err = s.AsrServer(ctx); err != nil {
+		response.NewResponse(ctx, conn, err_code.ServerError).SendJson().End(websocket.CloseGoingAway, err.Error())
+		return
 	}
+	response.NewResponse(ctx, conn, err_code.Success).End(websocket.CloseNormalClosure, "websocket close")
 }

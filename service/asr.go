@@ -79,11 +79,12 @@ func (s *Server) asrReceiveMsgFromClient(ctx *gin.Context) error {
 func (s *Server) asrSendMsgToClient(ctx *gin.Context) error {
 	conn, err := initConn()
 	if err != nil {
-		global.Log.Errorf("xunfei websocket conn err: %v", err)
+		global.Log.Error("")
 		return err
 	}
 	defer conn.Close()
 
+	errRec := make(chan error, 1)
 	// 发送数据
 	go func() {
 		status := StatusFirstFrame
@@ -91,6 +92,9 @@ func (s *Server) asrSendMsgToClient(ctx *gin.Context) error {
 			select {
 			case <-ctx.Done():
 				global.Log.Info("client conn is done and finish xunfei server goroutine")
+				return
+			case <-errRec:
+				global.Log.Info("xunfei recover err and finish sned")
 				return
 			case data := <-s.asrCh:
 				global.Log.WithFields(logger.Fields{"size": len(data.Data)}).Info("data size")
@@ -142,8 +146,6 @@ func (s *Server) asrSendMsgToClient(ctx *gin.Context) error {
 					global.Log.WithFields(logger.Fields{"frameData": frameData}).Info("last frame")
 					return
 				}
-			default:
-				time.Sleep(40 * time.Millisecond)
 			}
 		}
 	}()
@@ -161,12 +163,15 @@ func (s *Server) asrSendMsgToClient(ctx *gin.Context) error {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			global.Log.Errorf("xunfei conn read message err: %v", err)
+			errRec <- err
 			return err
 		}
 		json.Unmarshal(msg, &resp)
 		if resp.Code != 0 {
 			global.Log.WithFields(logger.Fields{"response": resp}).Errorf("xunfei response err: %v", err)
-			return fmt.Errorf("xunfei response err: %v", err)
+			err = fmt.Errorf("xunfei response err: %v", err)
+			errRec <- err
+			return err
 		}
 		global.Log.WithFields(logger.Fields{"response": string(msg)}).Info("xunfei response")
 		response.NewResponse(ctx, s.conn, err_code.Success).SetData(resp).SendJson()
@@ -185,10 +190,15 @@ func initConn() (*websocket.Conn, error) {
 	// 握手并建立websocket 连接
 	authUrl, err := assembleAuthUrl(global.AsrSetting.HostUrl, global.AsrSetting.ApiKey, global.AsrSetting.ApiSecret)
 	if err != nil {
+		global.Log.Errorf("auth url err: %v", err)
 		return nil, err
 	}
 	conn, resp, err := d.Dial(authUrl, nil)
-	if err != nil || resp.StatusCode != 101 {
+	if err != nil {
+		global.Log.Errorf("xunfei websocket conn err: %v", err)
+		return nil, err
+	} else if resp.StatusCode != 101 {
+		global.Log.WithFields(logger.Fields{"resp": resp}).Error("xunfei conn resp err")
 		return nil, err
 	}
 	return conn, nil

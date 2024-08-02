@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"stream-voice/model"
 	"sync"
 
@@ -20,20 +21,36 @@ func NewServer(conn *websocket.Conn) *Server {
 	}
 }
 
-func (s *Server) AsrServer(ctx *gin.Context) (err error) {
-	wg := sync.WaitGroup{}
+func (s *Server) AsrServer(ctx *gin.Context) error {
+	var (
+		wg      sync.WaitGroup
+		errSend error
+		errRcv  error
+	)
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err = s.asrSendMsgToClient(ctx)
+		errSend = s.asrSendMsgToClient(ctx)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err = s.asrReceiveMsgFromClient(ctx)
+		errRcv = s.asrReceiveMsgFromClient(ctx)
 	}()
 
 	wg.Wait()
+
+	if errSend != nil && errRcv != nil {
+		return fmt.Errorf("reveived asr result error: %v, received client message error: %v", errSend, errRcv)
+	}
+	if errSend != nil {
+		return errSend
+	}
+	if errRcv != nil {
+		return errRcv
+	}
+
 	return nil
 }
