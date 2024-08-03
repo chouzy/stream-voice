@@ -31,7 +31,7 @@ func NewResponse(ctx *gin.Context, conn *websocket.Conn, err *err_code.Error) *R
 	}
 }
 
-func (r *Response) SetData(data model.AsrRespData) *Response {
+func (r *Response) SetData(data string) *Response {
 	r.Response.Data = data
 	return r
 }

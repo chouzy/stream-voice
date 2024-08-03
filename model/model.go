@@ -10,7 +10,7 @@ type Response struct {
 		Code   int    `json:"code"`
 		ErrMsg string `json:"err_msg"`
 	} `json:"statue"`
-	Data AsrRespData `json:"data"`
+	Data string `json:"data"`
 }
 
 type AsrRespData struct {
@@ -31,9 +31,25 @@ type Result struct {
 	Ws  []Ws   `json:"ws"`
 }
 
+func (t *Result) String() string {
+	var wss string
+	for _, v := range t.Ws {
+		wss += v.String()
+	}
+	return wss
+}
+
 type Ws struct {
 	Bg int  `json:"bg"`
 	Cw []Cw `json:"cw"`
+}
+
+func (w *Ws) String() string {
+	var wss string
+	for _, v := range w.Cw {
+		wss += v.W
+	}
+	return wss
 }
 
 type Cw struct {

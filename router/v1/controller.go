@@ -54,8 +54,10 @@ func MiniProgramController(ctx *gin.Context) {
 
 	s := service.NewServer(conn)
 	if err = s.AsrServer(ctx); err != nil {
+		global.Log.Error("s.AsrServer err end")
 		response.NewResponse(ctx, conn, err_code.ServerError).SendJson().End(websocket.CloseGoingAway, err.Error())
 		return
 	}
+	global.Log.Info("s.AsrServer success end")
 	response.NewResponse(ctx, conn, err_code.Success).End(websocket.CloseNormalClosure, "websocket close")
 }

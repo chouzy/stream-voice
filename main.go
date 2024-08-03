@@ -5,18 +5,20 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime"
 	"stream-voice/global"
 	"stream-voice/pkg/logger"
 	"stream-voice/pkg/setting"
 	"stream-voice/router"
 	"syscall"
 	"time"
+
+	"github.com/gin-gonic/gin"
+
+	_ "net/http/pprof"
 
 	"github.com/natefinch/lumberjack"
 )
@@ -70,7 +72,7 @@ func setupLogger() error {
 		MaxAge:     global.LoggerSetting.MaxAge,
 		MaxBackups: global.LoggerSetting.MaxBackups,
 		Compress:   global.LoggerSetting.Compress,
-	}, "")
+	}, "debug")
 	return nil
 }
 
@@ -97,20 +99,20 @@ func main() {
 	}
 
 	// 使用量监控日志
-	go func() {
-		for {
-			time.Sleep(time.Minute * 5)
+	// go func() {
+	// 	for {
+	// 		time.Sleep(time.Minute * 5)
 
-			stats := runtime.MemStats{}
-			runtime.ReadMemStats(&stats)
-			alloc, syss, idle, inuse, stack := float64(stats.HeapAlloc)/1024/1024, float64(stats.HeapSys)/1024/1024,
-				float64(stats.HeapIdle)/1024/1024, float64(stats.HeapInuse)/1024/1024, float64(stats.StackInuse)/1024/1024
-			global.Log.WithFields(logger.Fields{
-				"GoRoutines": runtime.NumGoroutine(),
-				"Memory":     fmt.Sprintf("heap_alloc=%.2fMB heap_sys=%.2fMB heap_idle=%.2fMB heap_inuse=%.2fMB stack=%.2fMB\n", alloc, syss, idle, inuse, stack),
-			}).Infof("监控日志")
-		}
-	}()
+	// 		stats := runtime.MemStats{}
+	// 		runtime.ReadMemStats(&stats)
+	// 		alloc, syss, idle, inuse, stack := float64(stats.HeapAlloc)/1024/1024, float64(stats.HeapSys)/1024/1024,
+	// 			float64(stats.HeapIdle)/1024/1024, float64(stats.HeapInuse)/1024/1024, float64(stats.StackInuse)/1024/1024
+	// 		global.Log.WithFields(logger.Fields{
+	// 			"GoRoutines": runtime.NumGoroutine(),
+	// 			"Memory":     fmt.Sprintf("heap_alloc=%.2fMB heap_sys=%.2fMB heap_idle=%.2fMB heap_inuse=%.2fMB stack=%.2fMB\n", alloc, syss, idle, inuse, stack),
+	// 		}).Infof("监控日志")
+	// 	}
+	// }()
 
 	gin.SetMode(gin.DebugMode)
 	r := router.NewRouter()
@@ -131,7 +133,7 @@ func main() {
 	quit := make(chan os.Signal)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM) // 接收系统信号量
 	<-quit
-	log.Println("shutting down server...")
+	log.Println("\nshutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
