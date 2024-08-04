@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"fmt"
 	"stream-voice/global"
 	"stream-voice/model"
@@ -13,21 +12,18 @@ import (
 
 type Server struct {
 	conn   *websocket.Conn
-	reqCh  chan model.Request
-	respCh chan model.AsrRespData
+	reqCh  chan *model.Request
+	respCh chan *model.AsrRespData
 
-	cliEnd chan struct{}
-	xfEnd  chan struct{}
+	closed chan struct{}
 }
 
 func NewServer(conn *websocket.Conn) *Server {
 	return &Server{
 		conn:   conn,
-		reqCh:  make(chan model.Request, 5),
-		respCh: make(chan model.AsrRespData, 5),
-
-		cliEnd: make(chan struct{}),
-		xfEnd:  make(chan struct{}),
+		reqCh:  make(chan *model.Request, 5),
+		respCh: make(chan *model.AsrRespData, 5),
+		closed: make(chan struct{}, 1),
 	}
 }
 
@@ -38,14 +34,10 @@ func (s *Server) AsrServer(ctx *gin.Context) error {
 		errXunfei error
 	)
 
-	context, cancel := context.WithCancel(context.Background())
-	ctx.Set("ctx", context)
-
 	wg.Add(1)
 	go func() {
 		defer func() {
 			wg.Done()
-			cancel()
 			global.Log.Info("s.asrConn2Client end")
 		}()
 		errClient = s.asrConn2Client(ctx)
@@ -55,7 +47,6 @@ func (s *Server) AsrServer(ctx *gin.Context) error {
 	go func() {
 		defer func() {
 			wg.Done()
-			cancel()
 			global.Log.Info("s.asrConn2Xunfei end")
 		}()
 		errXunfei = s.asrConn2Xunfei(ctx)

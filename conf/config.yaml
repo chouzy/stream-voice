@@ -4,7 +4,7 @@ Server:
   Debug: true
 
 WebSocket:
-  KeepAliveTime: 10s     #连接保活时间，单位：秒
+  KeepAliveTime: 30s     #连接保活时间，单位：秒
   ReadBufferSize: 4096   #读缓冲区大小，单位：字节
   WriteBufferSize: 16384 #写缓冲区大小，单位：字节
   ReadLimit: 32768       #每包数据读取的大小，单位：字节
@@ -14,6 +14,7 @@ Asr:
   Appid: xxx
   ApiSecret: xxx
   ApiKey: xxx
+  KeepAliveTime: 10000
 
 Logger:
   LogFileName: customize_process
