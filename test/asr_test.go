@@ -13,7 +13,7 @@ import (
 )
 
 func TestAsr(t *testing.T) {
-	file := "../doc/iat_pcm_16k.pcm"
+	file := "../doc/16k_10.pcm"
 	frameSize := 1280
 
 	d := websocket.Dialer{

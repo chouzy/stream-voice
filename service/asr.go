@@ -5,8 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
+	"io"
 	"net/url"
 	"stream-voice/global"
 	"stream-voice/model"
@@ -15,6 +16,8 @@ import (
 	"stream-voice/pkg/response"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/gorilla/websocket"
 )
@@ -32,6 +35,7 @@ func (s *Server) asrConn2Client(ctx *gin.Context) error {
 		return nil
 	})
 
+	msgCh := make(chan *model.Request, 1)
 	errCh := make(chan error, 1)
 
 	// 接收客户端数据
@@ -40,19 +44,17 @@ func (s *Server) asrConn2Client(ctx *gin.Context) error {
 		for {
 			_, msg, err := s.conn.ReadMessage()
 			if err != nil {
-				global.Log.WithFields(logger.Fields{"reason": err}).Error("receive client message error")
 				errCh <- err
 				return
 			}
 
 			req := &model.Request{}
 			if err := json.Unmarshal(msg, req); err != nil {
-				global.Log.WithFields(logger.Fields{"reason": err}).Error("parse client message error")
 				errCh <- err
 				return
 			}
 
-			s.reqCh <- req
+			msgCh <- req
 		}
 	}()
 
@@ -64,8 +66,16 @@ func (s *Server) asrConn2Client(ctx *gin.Context) error {
 		case <-timer.C:
 			global.Log.Error("receive client message timeout")
 			return nil
+		case <-s.closed:
+			return nil
 		case err := <-errCh:
+			global.Log.WithFields(logger.Fields{"reason": err}).Error("receive client message error")
+			if errors.Is(err, io.EOF) || websocket.IsCloseError(err, websocket.CloseAbnormalClosure) {
+				return nil
+			}
 			return err
+		case msg := <-msgCh:
+			s.reqCh <- msg
 		case resp := <-s.respCh:
 			response.NewResponse(ctx, s.conn, err_code.Success).SetData(resp.Data.Result.String()).SendJson()
 			if resp.Data.Status == 2 {
@@ -78,6 +88,9 @@ func (s *Server) asrConn2Client(ctx *gin.Context) error {
 
 // 和服务端进行通信
 func (s *Server) asrConn2Xunfei(ctx *gin.Context) error {
+	defer func() {
+		s.closed <- struct{}{}
+	}()
 	conn, err := initConn()
 	if err != nil {
 		global.Log.WithFields(logger.Fields{"reason": err}).Errorf("xunfei conn failed")
@@ -85,30 +98,26 @@ func (s *Server) asrConn2Xunfei(ctx *gin.Context) error {
 	}
 	defer conn.Close()
 
+	msgCh := make(chan *model.AsrRespData, 1)
 	errCh := make(chan error, 1)
-	endCh := make(chan struct{}, 1)
 
 	go func() {
 		defer global.Log.Info("receive xunfei message end")
 		for {
 			_, msg, err := conn.ReadMessage()
 			if err != nil {
-				global.Log.WithFields(logger.Fields{"reason": err}).Error("receive xunfei message error")
 				errCh <- err
 				return
 			}
 
 			resp := &model.AsrRespData{}
 			if err = json.Unmarshal(msg, resp); err != nil {
-				global.Log.WithFields(logger.Fields{"reason": err}).Error("parse xunfei message error")
 				errCh <- err
 				return
 			}
 
-			s.respCh <- resp
-			global.Log.WithFields(logger.Fields{"status": resp.Data.Status, "data": resp.Data.Result.String()}).Info("xunfei message")
+			msgCh <- resp
 			if resp.Data.Status == 2 {
-				endCh <- struct{}{}
 				return
 			}
 		}
@@ -124,10 +133,17 @@ func (s *Server) asrConn2Xunfei(ctx *gin.Context) error {
 			global.Log.Error("receive xunfei message timeout")
 			return nil
 		case err = <-errCh:
+			global.Log.WithFields(logger.Fields{"reason": err}).Error("receive xunfei message error")
+			// if errors.Is(err, io.EOF) || websocket.IsCloseError(err, websocket.CloseAbnormalClosure) {
+			// 	return nil
+			// }
 			return err
-		case <-endCh:
-			s.closed <- struct{}{}
-			return nil
+		case msg := <-msgCh:
+			global.Log.WithFields(logger.Fields{"status": msg.Data.Status, "data": msg.Data.Result.String()}).Info("xunfei message")
+			s.respCh <- msg
+			if msg.Data.Status == 2 {
+				return nil
+			}
 		case req := <-s.reqCh:
 			if req.IsLast {
 				status = StatusLastFrame
@@ -185,9 +201,6 @@ func (s *Server) asrConn2Xunfei(ctx *gin.Context) error {
 					return err
 				}
 				global.Log.Info("send last frame")
-				// time.Sleep(10 * time.Second)
-				// return nil
-				continue
 			}
 		}
 		timer.Reset(global.SocketSetting.KeepAliveTime)
